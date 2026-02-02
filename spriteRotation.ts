@@ -13,12 +13,6 @@ namespace Rotation {
     let lastValidRightState = false;
     let inputProtectionEnabled = false;
 
-    //% block="enable sprite rotation input protection"
-    //% weight=75
-    export function enableInputProtection(): void {
-        inputProtectionEnabled = true;
-    }
-
     function shouldProcessTransformation(): boolean {
         if (!inputProtectionEnabled) return true;
 
@@ -42,6 +36,7 @@ namespace Rotation {
 
     //% block="set %sprite=variables_get(mySprite) rotation to %angle degrees"
     //% weight=100
+    //% group="Sprites"
     export function setRotation(sprite: Sprite, angle: number): void {
         if (!sprite) return;
         const spriteId = sprite.id;
@@ -65,6 +60,7 @@ namespace Rotation {
 
     //% block="set %sprite=variables_get(mySprite) vertical flip %flipped"
     //% weight=95
+    //% group="Sprites"
     export function setVerticalFlip(sprite: Sprite, flipped: boolean): void {
         if (!sprite) return;
 
@@ -92,17 +88,18 @@ namespace Rotation {
 
     //% block="make %sprite1=variables_get(mySprite) rotate towards %sprite2=variables_get(mySprite2) with offset %offset degrees"
     //% weight=89
+    //% group="Sprites"
     export function rotateTowardsWithOffset(sprite1: Sprite, sprite2: Sprite, offset: number): void {
         if (!sprite1 || !sprite2) return;
-        const deltaX = sprite2.x - sprite1.x;
-        const deltaY = sprite2.y - sprite1.y;
-        const angleRadians = Math.atan2(deltaY, deltaX);
-        const angleDegrees = angleRadians * (180 / Math.PI) + offset;
-        setRotation(sprite1, angleDegrees);
+        const dx = sprite2.x - sprite1.x;
+        const dy = sprite2.y - sprite1.y;
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI) + offset;
+        setRotation(sprite1, angle);
     }
 
     //% block="continuously make %sprite1=variables_get(mySprite) rotate towards %sprite2=variables_get(mySprite2) with offset %offset degrees"
     //% weight=79
+    //% group="Sprites"
     export function continuouslyRotateTowardsWithOffset(sprite1: Sprite, sprite2: Sprite, offset: number): void {
         if (!sprite1 || !sprite2) return;
         rotateTowardsWithOffset(sprite1, sprite2, offset);
@@ -115,6 +112,7 @@ namespace Rotation {
 
     //% block="get rotated image of %sprite=variables_get(mySprite)"
     //% weight=70
+    //% group="Sprites"
     export function getRotatedImage(sprite: Sprite): Image {
         if (!sprite) return null;
         const data = spriteData[sprite.id];
@@ -128,67 +126,142 @@ namespace Rotation {
         return src;
     }
 
+    //% block="rotate image %img=variables_get(myImage) by %angle degrees with %margin pixel margin"
+    //% weight=60
+    //% group="Images"
+    export function rotateImageByDegrees(
+        img: Image,
+        angle: number,
+        margin: number
+    ): Image {
+        if (!img) return null;
+        const a = ((angle % 360) + 360) % 360;
+        return rotateImageWithMargin(img, a, Math.max(0, margin));
+    }
+
+    //% block="rotate image %img=variables_get(myImage) from x %x1 y %y1 to face x %x2 y %y2 with offset %offset degrees with %margin pixel margin"
+    //% weight=55
+    //% group="Images"
+    export function rotateImageFromToWithOffset(
+        img: Image,
+        x1: number,
+        y1: number,
+        x2: number,
+        y2: number,
+        offset: number,
+        margin: number
+    ): Image {
+        if (!img) return null;
+
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        if (dx === 0 && dy === 0) return img.clone();
+
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI) + offset;
+        return rotateImageWithMargin(img, angle, Math.max(0, margin));
+    }
+
+    //% block="enable sprite rotation input protection"
+    //% weight=75
+    //% group="Other"
+    export function enableInputProtection(): void {
+        inputProtectionEnabled = true;
+    }
+
+
     function applyTransformation(sprite: Sprite, data: SpriteRotationData): void {
-        const currentX = sprite.x;
-        const currentY = sprite.y;
-        let transformedImage = data.originalImage.clone();
+        const x = sprite.x;
+        const y = sprite.y;
 
-        if (data.isFlippedY) {
-            transformedImage = flipImageVertically(transformedImage);
-        }
+        let img = data.originalImage.clone();
+        if (data.isFlippedY) img = flipImageVertically(img);
+        if (data.currentRotation !== 0) img = rotateImage(img, data.currentRotation);
 
-        if (data.currentRotation !== 0) {
-            transformedImage = rotateImage(transformedImage, data.currentRotation);
-        }
-
-        data.transformedImage = transformedImage;
-
-        sprite.setImage(transformedImage);
-        sprite.setPosition(currentX, currentY);
+        data.transformedImage = img;
+        sprite.setImage(img);
+        sprite.setPosition(x, y);
     }
 
     function flipImageVertically(img: Image): Image {
-        const width = img.width;
-        const height = img.height;
-        const flippedImg = image.create(width, height);
-        for (let x = 0; x < width; x++) {
-            for (let y = 0; y < height; y++) {
-                const color = img.getPixel(x, y);
-                flippedImg.setPixel(x, height - 1 - y, color);
+        const w = img.width;
+        const h = img.height;
+        const out = image.create(w, h);
+
+        for (let x = 0; x < w; x++) {
+            for (let y = 0; y < h; y++) {
+                out.setPixel(x, h - 1 - y, img.getPixel(x, y));
             }
         }
-        return flippedImg;
+        return out;
     }
 
     function rotateImage(img: Image, angleDegrees: number): Image {
-        const angleRadians = angleDegrees * Math.PI / 180;
-        const cos = Math.cos(angleRadians);
-        const sin = Math.sin(angleRadians);
-        const width = img.width;
-        const height = img.height;
-        const newWidth = Math.ceil(Math.abs(width * cos) + Math.abs(height * sin));
-        const newHeight = Math.ceil(Math.abs(width * sin) + Math.abs(height * cos));
-        const rotatedImg = image.create(newWidth, newHeight);
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const newCenterX = newWidth / 2;
-        const newCenterY = newHeight / 2;
+        const r = angleDegrees * Math.PI / 180;
+        const cos = Math.cos(r);
+        const sin = Math.sin(r);
 
-        for (let x = 0; x < newWidth; x++) {
-            for (let y = 0; y < newHeight; y++) {
-                const translatedX = x - newCenterX;
-                const translatedY = y - newCenterY;
-                const sourceX = Math.round(translatedX * cos + translatedY * sin + centerX);
-                const sourceY = Math.round(-translatedX * sin + translatedY * cos + centerY);
+        const w = img.width;
+        const h = img.height;
 
-                if (sourceX >= 0 && sourceX < width && sourceY >= 0 && sourceY < height) {
-                    const color = img.getPixel(sourceX, sourceY);
-                    if (color !== 0) {
-                        rotatedImg.setPixel(x, y, color);
-                    }
+        const nw = Math.ceil(Math.abs(w * cos) + Math.abs(h * sin));
+        const nh = Math.ceil(Math.abs(w * sin) + Math.abs(h * cos));
+
+        const out = image.create(nw, nh);
+
+        const cx = w / 2;
+        const cy = h / 2;
+        const ncx = nw / 2;
+        const ncy = nh / 2;
+
+        for (let x = 0; x < nw; x++) {
+            for (let y = 0; y < nh; y++) {
+                const dx = x - ncx;
+                const dy = y - ncy;
+
+                const sx = Math.round(dx * cos + dy * sin + cx);
+                const sy = Math.round(-dx * sin + dy * cos + cy);
+
+                if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
+                    const c = img.getPixel(sx, sy);
+                    if (c !== 0) out.setPixel(x, y, c);
                 }
             }
         }
-        return rotatedImg;
+        return out;
+    }
+
+    function rotateImageWithMargin(img: Image, angleDegrees: number, margin: number): Image {
+        const r = angleDegrees * Math.PI / 180;
+        const cos = Math.cos(r);
+        const sin = Math.sin(r);
+
+        const sw = img.width;
+        const sh = img.height;
+
+        const dw = sw + margin * 2;
+        const dh = sh + margin * 2;
+
+        const out = image.create(dw, dh);
+
+        const scx = sw / 2;
+        const scy = sh / 2;
+        const dcx = dw / 2;
+        const dcy = dh / 2;
+
+        for (let x = 0; x < dw; x++) {
+            for (let y = 0; y < dh; y++) {
+                const dx = x - dcx;
+                const dy = y - dcy;
+
+                const sx = Math.round(dx * cos + dy * sin + scx);
+                const sy = Math.round(-dx * sin + dy * cos + scy);
+
+                if (sx >= 0 && sx < sw && sy >= 0 && sy < sh) {
+                    const c = img.getPixel(sx, sy);
+                    if (c !== 0) out.setPixel(x, y, c);
+                }
+            }
+        }
+        return out;
     }
 }
