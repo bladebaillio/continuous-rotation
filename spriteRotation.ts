@@ -1,5 +1,6 @@
 //% weight=100 color=#ff6600 icon="\uf021"
-namespace Rotation {
+//% block="Rotation"
+namespace spriteRotation {
     interface SpriteRotationData {
         originalImage: Image;
         currentRotation: number;
